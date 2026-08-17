@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Local databases
+database.db
+*.db
+*.db-journal
+
+# Build and tooling output
+dist/
+coverage/
+*.log
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
