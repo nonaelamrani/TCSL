@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { commandByName } from "./commands/index.js";
 import { handleTeamDeleteButton } from "./commands/team.js";
+import { handleSackButton } from "./commands/management.js";
 import { env } from "./config/env.js";
 import { prisma } from "./database/prisma.js";
 import { logger } from "./utils/logger.js";
@@ -15,7 +16,7 @@ client.once(Events.ClientReady, (readyClient) => {
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isAutocomplete()) {
-      if (!["team", "roster"].includes(interaction.commandName)) return;
+      if (!["team", "roster", "assign"].includes(interaction.commandName)) return;
       const focused = interaction.options.getFocused().toLowerCase();
       const teams = await prisma.team.findMany({
         where: { isArchived: false, name: { contains: focused, mode: "insensitive" } },
@@ -25,7 +26,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
     if (interaction.isButton()) {
-      await handleTeamDeleteButton(interaction);
+      if (await handleTeamDeleteButton(interaction)) return;
+      await handleSackButton(interaction);
       return;
     }
     if (!interaction.isChatInputCommand()) return;
