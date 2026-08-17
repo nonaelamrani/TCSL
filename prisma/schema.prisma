@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum DemandStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CANCELLED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  POSTPONEMENT_PENDING
+  POSTPONED
+  COMPLETED
+  CANCELLED
+}
+
+enum PostponementStatus {
+  PENDING
+  STAFF_APPROVED
+  STAFF_DENIED
+  OPPONENT_PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+  STAFF_INTERVENTION
+}
+
+enum PostponementActionType {
+  REQUESTED
+  STAFF_APPROVED
+  STAFF_DENIED
+  ACCEPTED
+  REJECTED
+  COUNTERED
+  CANCELLED
+}
+
+enum TransferType {
+  TRANSFER
+  RELEASE
+}
+
+enum AuditAction {
+  TEAM_CREATED
+  TEAM_UPDATED
+  TEAM_DELETED
+  MANAGER_ASSIGNED
+  ASSISTANT_ASSIGNED
+  SACKED
+  OFFER_CREATED
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  PLAYER_RELEASED
+  DEMAND_CREATED
+  MATCH_CREATED
+  POSTPONEMENT_REQUESTED
+  CONFIGURATION_CHANGED
+}
+
+model Team {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  discordRoleId      String   @unique
+  logoUrl            String?
+  managerId          String?  @unique
+  assistantManagerId String?  @unique
+  isArchived         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  manager            Player?  @relation("TeamManager", fields: [managerId], references: [discordId])
+  assistantManager   Player?  @relation("TeamAssistantManager", fields: [assistantManagerId], references: [discordId])
+  players            Player[] @relation("TeamPlayers")
+  homeMatches        Match[]  @relation("HomeTeam")
+  awayMatches        Match[]  @relation("AwayTeam")
+  offers             Offer[]  @relation("OfferingTeam")
+  transfersTo        Transfer[] @relation("TransferTo")
+  transfersFrom      Transfer[] @relation("TransferFrom")
+
+  @@index([isArchived])
+}
+
+model Player {
+  discordId       String   @id
+  joinedAt        DateTime @default(now())
+  teamId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  team            Team?    @relation("TeamPlayers", fields: [teamId], references: [id])
+  managesTeam     Team?    @relation("TeamManager")
+  assistsTeam     Team?    @relation("TeamAssistantManager")
+  offers          Offer[]
+  transfers       Transfer[]
+  demands         Demand[]
+
+  @@index([teamId])
+}
+
+model Offer {
+  id             String      @id @default(cuid())
+  playerId       String
+  offeringTeamId String
+  status         OfferStatus @default(PENDING)
+  expiresAt      DateTime
+  caseId         String      @unique
+  createdById    String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  player         Player      @relation(fields: [playerId], references: [discordId])
+  offeringTeam   Team        @relation("OfferingTeam", fields: [offeringTeamId], references: [id])
+  case           Case        @relation(fields: [caseId], references: [id])
+
+  @@index([playerId, status])
+  @@index([offeringTeamId, status])
+}
+
+model Transfer {
+  id         String       @id @default(cuid())
+  playerId   String
+  fromTeamId String?
+  toTeamId   String?
+  type       TransferType
+  caseId     String       @unique
+  createdById String
+  createdAt  DateTime     @default(now())
+  player     Player       @relation(fields: [playerId], references: [discordId])
+  fromTeam   Team?        @relation("TransferFrom", fields: [fromTeamId], references: [id])
+  toTeam     Team?        @relation("TransferTo", fields: [toTeamId], references: [id])
+  case       Case         @relation(fields: [caseId], references: [id])
+  @@index([playerId, createdAt])
+}
+
+model Demand {
+  id          String       @id @default(cuid())
+  playerId    String
+  reason      String
+  status      DemandStatus @default(PENDING)
+  caseId      String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  player      Player       @relation(fields: [playerId], references: [discordId])
+  case        Case         @relation(fields: [caseId], references: [id])
+  @@index([playerId, status])
+}
+
+model Match {
+  id               String      @id @default(cuid())
+  homeTeamId       String
+  awayTeamId       String
+  originalTimestamp DateTime
+  currentTimestamp DateTime
+  status           MatchStatus @default(SCHEDULED)
+  createdById      String
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  homeTeam         Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam         Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  postponements    Postponement[]
+  @@index([currentTimestamp, status])
+  @@unique([homeTeamId, awayTeamId, originalTimestamp])
+}
+
+model Postponement {
+  id              String             @id @default(cuid())
+  matchId         String
+  requestingTeamId String
+  requestedById   String
+  proposedTime    DateTime
+  reason          String
+  status          PostponementStatus @default(PENDING)
+  caseId          String             @unique
+  counterOfferCount Int               @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  match           Match              @relation(fields: [matchId], references: [id])
+  case            Case               @relation(fields: [caseId], references: [id])
+  actions         PostponementAction[]
+  @@index([matchId, status])
+}
+
+model PostponementAction {
+  id             String                 @id @default(cuid())
+  postponementId String
+  actorId        String
+  type           PostponementActionType
+  proposedTime   DateTime?
+  note           String?
+  createdAt      DateTime               @default(now())
+  postponement   Postponement           @relation(fields: [postponementId], references: [id])
+  @@index([postponementId, createdAt])
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  actorId   String
+  targetId  String?
+  teamId    String?
+  details   Json?
+  caseId    String?
+  createdAt DateTime    @default(now())
+  case      Case?       @relation(fields: [caseId], references: [id])
+  @@index([targetId, createdAt])
+  @@index([teamId, createdAt])
+}
+
+model Configuration {
+  id                    Int      @id @default(1)
+  adminRoleId           String?
+  managerRoleId         String?
+  assistantManagerRoleId String?
+  logsChannelId         String?
+  postponementChannelId String?
+  updatedAt             DateTime @updatedAt
+}
+
+model Case {
+  id         String      @id @default(cuid())
+  number     Int         @unique @default(autoincrement())
+  createdAt  DateTime    @default(now())
+  offer      Offer?
+  transfer   Transfer?
+  demand     Demand?
+  postponement Postponement?
+  auditLogs  AuditLog[]
+}

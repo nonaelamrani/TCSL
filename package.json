@@ -1,0 +1,29 @@
+{
+  "name": "discord-football-league-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "register": "tsx src/deploy-commands.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "discord.js": "^14.0.0",
+    "dotenv": "^16.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^22.0.0"
+  }
+}
