@@ -76,8 +76,10 @@ enum AuditAction {
 
 model Team {
   id                 String   @id @default(cuid())
-  name               String   @unique
-  discordRoleId      String   @unique
+  // Active-team uniqueness is enforced by PostgreSQL partial indexes in the migration.
+  // Archived teams keep these original values as part of their historical record.
+  name               String
+  discordRoleId      String
   logoUrl            String?
   managerId          String?  @unique
   assistantManagerId String?  @unique

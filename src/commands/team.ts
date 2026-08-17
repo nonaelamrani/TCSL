@@ -32,12 +32,26 @@ export const teamCommand: Command = {
       const logoUrl = interaction.options.getString("logo")?.trim();
       if (name.length < 2 || name.length > 60) return void (await replyError(interaction, "Team names must be 2–60 characters."));
       if (logoUrl && !validHttpUrl(logoUrl)) return void (await replyError(interaction, "Logo must be a valid HTTP(S) URL."));
+      const conflictingTeam = await prisma.team.findFirst({
+        where: {
+          isArchived: false,
+          OR: [
+            { name: { equals: name, mode: "insensitive" } },
+            { discordRoleId: role.id },
+          ],
+        },
+        select: { name: true, discordRoleId: true },
+      });
+      if (conflictingTeam) {
+        const reason = conflictingTeam.discordRoleId === role.id ? "Discord role" : "team name";
+        return void (await replyError(interaction, `That ${reason} is already assigned to the active team **${conflictingTeam.name}**.`));
+      }
       try {
         const team = await prisma.team.create({ data: { name, discordRoleId: role.id, logoUrl } });
         await interaction.reply({ embeds: [successEmbed("Team created", `${team.name} is linked to ${role}.`)], ephemeral: true });
       } catch (error: unknown) {
         const message = error instanceof Error && error.message.includes("Unique constraint")
-          ? "That team name or Discord role is already assigned." : "Unable to create the team. Please try again.";
+          ? "That team name or Discord role was assigned at the same time. Please try again." : "Unable to create the team. Please try again.";
         await replyError(interaction, message);
       }
       return;
