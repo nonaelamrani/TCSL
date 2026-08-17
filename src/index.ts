@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { commandByName } from "./commands/index.js";
+import { handleTeamDeleteButton } from "./commands/team.js";
 import { env } from "./config/env.js";
 import { prisma } from "./database/prisma.js";
 import { logger } from "./utils/logger.js";
@@ -21,6 +22,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         orderBy: { name: "asc" }, take: 25, select: { name: true },
       });
       await interaction.respond(teams.map((team) => ({ name: team.name, value: team.name })));
+      return;
+    }
+    if (interaction.isButton()) {
+      await handleTeamDeleteButton(interaction);
       return;
     }
     if (!interaction.isChatInputCommand()) return;
