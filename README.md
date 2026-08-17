@@ -16,7 +16,7 @@ Discord-only league management bot built with Node.js, TypeScript, discord.js, P
 
 - PostgreSQL Prisma schema for teams, players, offers, transfers, demands, matches, postponements, cases, audit logs, and configuration.
 - `/team create`, `/team info`, and `/roster`, with database-backed team data and autocomplete.
-- Database-backed admin/team authorization helpers. Before team administration can begin, set `Configuration.adminRoleId` through a trusted database administration path.
+- Team authorization helpers. Members with Discord's Administrator permission can manage teams; team Managers and Assistant Managers will be checked against PostgreSQL for their own-team actions as those commands are added.
 - Safe environment-variable validation and central error handling.
 
 ## Production deployment

@@ -1,4 +1,4 @@
-import type { GuildMember } from "discord.js";
+import { PermissionFlagsBits, type GuildMember } from "discord.js";
 import { prisma } from "../database/prisma.js";
 
 export async function getConfiguration() {
@@ -6,8 +6,7 @@ export async function getConfiguration() {
 }
 
 export async function isAdmin(member: GuildMember) {
-  const config = await getConfiguration();
-  return Boolean(config.adminRoleId && member.roles.cache.has(config.adminRoleId));
+  return member.permissions.has(PermissionFlagsBits.Administrator);
 }
 
 export async function canManageTeam(member: GuildMember, teamId: string) {
