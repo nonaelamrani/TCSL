@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, type
 import { prisma } from "../database/prisma.js";
 import { isAdmin } from "../permissions/authorization.js";
 import type { Command } from "./types.js";
-import { replyError, successEmbed } from "../utils/discord.js";
+import { leagueEmbed, replyError, successEmbed } from "../utils/discord.js";
 
 const validHttpUrl = (value: string) => {
   try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; }
@@ -81,12 +81,14 @@ export const teamCommand: Command = {
     });
     if (!team) return void (await replyError(interaction, "That team does not exist."));
     await interaction.reply({
-      embeds: [successEmbed(team.name, [
-        `Role: <@&${team.discordRoleId}>`,
-        `Manager: ${team.manager ? `<@${team.manager.discordId}>` : "Unassigned"}`,
-        `Assistant Manager: ${team.assistantManager ? `<@${team.assistantManager.discordId}>` : "Unassigned"}`,
-        `Players: ${team._count.players}`,
-      ].join("\n")).setThumbnail(team.logoUrl ?? null)],
+      embeds: [leagueEmbed(`⚽ ${team.name}`, "Official team profile")
+        .setThumbnail(team.logoUrl ?? null)
+        .addFields(
+          { name: "🏷️ Team Role", value: `<@&${team.discordRoleId}>`, inline: true },
+          { name: "📊 Roster Count", value: `${team._count.players} player${team._count.players === 1 ? "" : "s"}`, inline: true },
+          { name: "👑 Manager", value: team.manager ? `<@${team.manager.discordId}>` : "*Unassigned*", inline: true },
+          { name: "🧠 Assistant Manager", value: team.assistantManager ? `<@${team.assistantManager.discordId}>` : "*Unassigned*", inline: true },
+        )],
     });
   },
 };
