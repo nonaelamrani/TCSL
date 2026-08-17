@@ -81,6 +81,7 @@ model Team {
   name               String
   discordRoleId      String
   logoUrl            String?
+  rosterLimit        Int      @default(18)
   managerId          String?
   assistantManagerId String?
   isArchived         Boolean  @default(false)

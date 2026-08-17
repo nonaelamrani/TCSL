@@ -19,6 +19,9 @@ export const teamCommand: Command = {
       .addStringOption((option) => option.setName("name").setDescription("New team name"))
       .addRoleOption((option) => option.setName("role").setDescription("New team Discord role"))
       .addAttachmentOption((option) => option.setName("logo").setDescription("New team logo image (maximum 8 MB)")))
+    .addSubcommand((subcommand) => subcommand.setName("playercount").setDescription("Set a team's maximum roster size")
+      .addStringOption((option) => option.setName("team").setDescription("Team name").setAutocomplete(true).setRequired(true))
+      .addIntegerOption((option) => option.setName("count").setDescription("Maximum roster size").setMinValue(1).setMaxValue(100).setRequired(true)))
     .addSubcommand((subcommand) => subcommand.setName("info").setDescription("Show team information")
       .addStringOption((option) => option.setName("team").setDescription("Team name").setAutocomplete(true).setRequired(true)))
     .addSubcommand((subcommand) => subcommand.setName("delete").setDescription("Archive a team and preserve its history")
@@ -123,6 +126,25 @@ export const teamCommand: Command = {
       return;
     }
 
+    if (subcommand === "playercount") {
+      if (!(await isAdmin(member))) return void (await replyError(interaction, "You do not have permission to perform this action."));
+      const team = await prisma.team.findFirst({
+        where: { name: { equals: interaction.options.getString("team", true), mode: "insensitive" }, isArchived: false },
+      });
+      if (!team) return void (await replyError(interaction, "That active team does not exist."));
+      const rosterLimit = interaction.options.getInteger("count", true);
+      const updated = await prisma.$transaction(async (transaction) => {
+        const teamCase = await transaction.case.create({ data: {} });
+        const result = await transaction.team.update({ where: { id: team.id }, data: { rosterLimit } });
+        await transaction.auditLog.create({
+          data: { action: "TEAM_UPDATED", actorId: interaction.user.id, targetId: team.id, teamId: team.id, caseId: teamCase.id, details: { rosterLimit } },
+        });
+        return { team: result, caseNumber: teamCase.number };
+      });
+      await interaction.reply({ embeds: [successEmbed("Roster size updated", `**${updated.team.name}** now has a maximum roster size of **${rosterLimit}**.\nCase #${updated.caseNumber}`)], ephemeral: true });
+      return;
+    }
+
     if (subcommand === "delete") {
       if (!(await isAdmin(member))) return void (await replyError(interaction, "You do not have permission to perform this action."));
       const team = await prisma.team.findFirst({
@@ -194,6 +216,36 @@ export async function handleTeamDeleteButton(interaction: ButtonInteraction) {
     return true;
   }
   if (action !== "team-delete-confirm") return false;
+
+  const activeTeam = await prisma.team.findFirst({
+    where: { id: teamId, isArchived: false },
+    include: { players: { select: { discordId: true } } },
+  });
+  if (!activeTeam) {
+    await interaction.update({ content: "❌ This team has already been archived or no longer exists.", components: [] });
+    return true;
+  }
+  const teamRole = interaction.guild.roles.cache.get(activeTeam.discordRoleId);
+  if (teamRole && !teamRole.editable) {
+    await interaction.reply({ content: "❌ I cannot remove this team's role. Move my role above the team role, then try again.", ephemeral: true });
+    return true;
+  }
+  const memberIds = new Set([
+    ...activeTeam.players.map((player) => player.discordId),
+    ...(activeTeam.managerId ? [activeTeam.managerId] : []),
+    ...(activeTeam.assistantManagerId ? [activeTeam.assistantManagerId] : []),
+  ]);
+  try {
+    if (teamRole) {
+      for (const memberId of memberIds) {
+        const rosterMember = await interaction.guild.members.fetch(memberId).catch(() => null);
+        if (rosterMember?.roles.cache.has(teamRole.id)) await rosterMember.roles.remove(teamRole);
+      }
+    }
+  } catch {
+    await interaction.reply({ content: "❌ I could not remove the team role from every rostered member. No team data was archived; fix my role permissions and try again.", ephemeral: true });
+    return true;
+  }
 
   const archived = await prisma.$transaction(async (transaction) => {
     const team = await transaction.team.findFirst({ where: { id: teamId, isArchived: false } });

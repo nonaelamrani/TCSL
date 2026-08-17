@@ -31,7 +31,7 @@ export const rosterCommand: Command = {
     const players = team.players.filter((player) => player.discordId !== team.managerId && player.discordId !== team.assistantManagerId);
     const rosterEmbed = leagueEmbed(`⚽ ${team.name} Roster`, [
       "**📊 Roster Count**",
-      `${team.players.length} registered player${team.players.length === 1 ? "" : "s"}`,
+      `${team.players.length} / ${team.rosterLimit} registered player${team.players.length === 1 ? "" : "s"}`,
       "",
       "━━━━━━━━━━ Players ━━━━━━━━━━",
     ].join("\n"))
