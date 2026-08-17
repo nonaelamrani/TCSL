@@ -81,8 +81,8 @@ model Team {
   name               String
   discordRoleId      String
   logoUrl            String?
-  managerId          String?  @unique
-  assistantManagerId String?  @unique
+  managerId          String?
+  assistantManagerId String?
   isArchived         Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -105,8 +105,8 @@ model Player {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   team            Team?    @relation("TeamPlayers", fields: [teamId], references: [id])
-  managesTeam     Team?    @relation("TeamManager")
-  assistsTeam     Team?    @relation("TeamAssistantManager")
+  managedTeams    Team[]  @relation("TeamManager")
+  assistedTeams   Team[]  @relation("TeamAssistantManager")
   offers          Offer[]
   transfers       Transfer[]
   demands         Demand[]

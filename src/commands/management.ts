@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, SlashCommandBuilder, type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember, type Role } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, type ButtonInteraction, type ChatInputCommandInteraction, type Role } from "discord.js";
 import { prisma } from "../database/prisma.js";
 import { isAdmin } from "../permissions/authorization.js";
 import type { Command } from "./types.js";
@@ -27,7 +27,11 @@ async function configureRole(interaction: ChatInputCommandInteraction, kind: Man
   if (!interaction.inGuild() || !interaction.guild) return void (await replyError(interaction, "This command can only be used in a server."));
   const member = await interaction.guild.members.fetch(interaction.user.id);
   if (!(await isAdmin(member))) return void (await replyError(interaction, "You do not have permission to perform this action."));
-  const role = interaction.options.getRole("role", true);
+  const selectedRole = interaction.options.getRole("role", true);
+  const role = interaction.guild.roles.cache.get(selectedRole.id);
+  if (!role) return void (await replyError(interaction, "That Discord role no longer exists."));
+  const problem = roleIssue(role);
+  if (problem) return void (await replyError(interaction, problem));
   await prisma.configuration.upsert({
     where: { id: 1 },
     create: kind === "manager" ? { id: 1, managerRoleId: role.id } : { id: 1, assistantManagerRoleId: role.id },
@@ -63,6 +67,7 @@ export const assignCommand: Command = {
     const kind: ManagementKind = interaction.options.getSubcommand() === "manager" ? "manager" : "assistant";
     const actingMember = await interaction.guild.members.fetch(interaction.user.id);
     const target = interaction.options.getUser("player", true);
+    if (target.bot) return void (await replyError(interaction, "Bots cannot be assigned as Managers or Assistant Managers."));
     const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
     if (!targetMember) return void (await replyError(interaction, "That player is not a member of this server."));
     const team = await prisma.team.findFirst({ where: { name: { equals: interaction.options.getString("team", true), mode: "insensitive" }, isArchived: false } });
@@ -78,6 +83,12 @@ export const assignCommand: Command = {
       return void (await replyError(interaction, `This team already has a ${kind}. Use \`replace: true\` to replace them.`));
     }
     if (currentStaffId === target.id) return void (await replyError(interaction, `That player is already this team's ${kind}.`));
+    if (kind === "manager" && team.assistantManagerId === target.id) {
+      return void (await replyError(interaction, "That player is already this team's Assistant Manager. Sack them from that role before assigning them as Manager."));
+    }
+    if (kind === "assistant" && team.managerId === target.id) {
+      return void (await replyError(interaction, "That player is already this team's Manager and cannot also be its Assistant Manager."));
+    }
     const otherManagement = await prisma.team.findFirst({
       where: { isArchived: false, OR: [{ managerId: target.id }, { assistantManagerId: target.id }] },
       select: { id: true, name: true, managerId: true, assistantManagerId: true },
@@ -89,10 +100,6 @@ export const assignCommand: Command = {
     const previousStaff = currentStaffId ? await interaction.guild.members.fetch(currentStaffId).catch(() => null) : null;
     try {
       await targetMember.roles.add([setup.teamRoleId, setup.managementRoleId]);
-      if (kind === "manager" && team.assistantManagerId === target.id && setup.managementRoleId !== setup.teamRoleId) {
-        const config = await prisma.configuration.findUnique({ where: { id: 1 } });
-        if (config?.assistantManagerRoleId) await targetMember.roles.remove(config.assistantManagerRoleId);
-      }
       if (previousStaff) await previousStaff.roles.remove(setup.managementRoleId);
     } catch {
       return void (await replyError(interaction, "I could not update Discord roles. Check that my role is above the team and staff roles."));
